@@ -128,7 +128,7 @@ struct Renderer {
                         {obj.hitbox.x - radius / 2, obj.hitbox.y - radius / 2},
                         0, 1.5 * obj.hitbox.width, obj.color);
           EndShaderMode();
-        } else{
+        } else {
           DrawRectangleRec(obj.hitbox, obj.color);
         }
       }
@@ -285,18 +285,26 @@ struct Engine {
             obj2.speed.y = speedYTotal * transferRatio2 / obj2.weight;
             // Adjust positions to avoid overlap
             if (collisionDirection == 3) { // Top collision
-              if (obj2.shouldMove) {
+              if (obj2.shouldMove && obj1.shouldMove) {
                 obj2.hitbox.y += overlapY * transferRatio1;
                 obj1.hitbox.y -= overlapY * transferRatio2;
               } else {
-                obj1.hitbox.y = obj2.hitbox.y - obj1.hitbox.height;
+                if (obj2.shouldMove) {
+                  obj2.hitbox.y = obj1.hitbox.y + obj1.hitbox.height;
+                } else {
+                  obj1.hitbox.y = obj2.hitbox.y - obj1.hitbox.height;
+                }
               }
             } else { // Bottom collision
-              if (obj2.shouldMove) {
+              if (obj2.shouldMove && obj1.shouldMove) {
                 obj2.hitbox.y -= overlapY * transferRatio1;
                 obj1.hitbox.y += overlapY * transferRatio2;
               } else {
-                obj1.hitbox.y = obj2.hitbox.y + obj2.hitbox.height;
+                if (obj2.shouldMove) {
+                  obj2.hitbox.y = obj1.hitbox.y - obj2.hitbox.height;
+                } else {
+                  obj1.hitbox.y = obj2.hitbox.y + obj2.hitbox.height;
+                }
               }
             }
           } else { // Horizontal collision
@@ -306,18 +314,26 @@ struct Engine {
             obj2.speed.x = speedXTotal * transferRatio2 / obj2.weight;
             // Adjust positions to avoid overlap
             if (collisionDirection == 1) { // Left collision
-              if (obj2.shouldMove) {
+              if (obj2.shouldMove && obj1.shouldMove) {
                 obj2.hitbox.x += overlapX * transferRatio1;
                 obj1.hitbox.x -= overlapX * transferRatio2;
               } else {
-                obj1.hitbox.x -= overlapX;
+                if (obj2.shouldMove) {
+                  obj2.hitbox.x += overlapX;
+                } else {
+                  obj1.hitbox.x -= overlapX;
+                }
               }
             } else { // Right collision
-              if (obj2.shouldMove) {
+              if (obj2.shouldMove && obj1.shouldMove) {
                 obj2.hitbox.x -= overlapX * transferRatio1;
                 obj1.hitbox.x += overlapX * transferRatio2;
               } else {
-                obj1.hitbox.x += overlapX;
+                if (obj2.shouldMove) {
+                  obj2.hitbox.x -= overlapX;
+                } else {
+                  obj1.hitbox.x += overlapX;
+                }
               }
             }
           }
@@ -361,7 +377,7 @@ struct Engine {
   }
   void setUpdate(std::function<void(Map &, float)> func) { update = func; }
 
-  void start() {
+  void start(int ObjIdToCenterOn = 0) {
     renderer.init();
     while (!renderer.shouldClose()) {
       for (auto const &[key, val] : keybinds) {
@@ -369,14 +385,13 @@ struct Engine {
           val(map);
         }
       }
-      auto player = map.objects[0];
-      /* auto speedStr = "Player.speed: " + std::to_string(player.speed.x) + ",
-       * " + */
-      /*                 std::to_string(player.speed.y); */
-      /* auto accStr = */
-      /*     "Player.acceleration: " + std::to_string(player.acceleration.x) +
-       */
-      /*     ", " + std::to_string(player.acceleration.y); */
+      auto player = map.objects[ObjIdToCenterOn];
+      auto speedStr = "Player.speed: " + std::to_string(player.speed.x) + "," +
+                      std::to_string(player.speed.y);
+      auto accStr =
+          "Player.acceleration: " + std::to_string(player.acceleration.x) +
+
+          ", " + std::to_string(player.acceleration.y);
       if (update) {
         update(map, GetFrameTime());
       }
@@ -400,6 +415,9 @@ struct Engine {
       if (postDraw) {
         postDraw(map, GetFrameTime());
       }
+
+      DrawText(speedStr.c_str(), 10, 10, 20, BLACK);
+      DrawText(accStr.c_str(), 10, 30, 20, BLACK);
 
       renderer.endDrawing();
     }

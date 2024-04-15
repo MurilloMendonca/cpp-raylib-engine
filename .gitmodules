@@ -1,3 +1,0 @@
-[submodule "dependencies/raylib"]
-	path = dependencies/raylib
-	url = git@github.com:raysan5/raylib.git

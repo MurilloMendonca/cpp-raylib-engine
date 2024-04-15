@@ -1,0 +1,14 @@
+all: build football physics map
+football: build 
+	g++ -o build/football src/footballGame.cpp -L./dependencies/raylib/lib -lraylib -I./dependencies/raylib/include -I./include -I./dependencies/raygui/src
+
+physics: build
+	g++ -o build/physics src/game.cpp -L./dependencies/raylib/lib -lraylib -I./dependencies/raylib/include -I./include
+
+map: build
+	g++ -o build/mapTest src/mapTest.cpp -L./dependencies/raylib/lib -lraylib -I./dependencies/raylib/include -I./include -g
+build: 
+	mkdir build
+	cp resources/* build/
+clean:
+	rm -rf build

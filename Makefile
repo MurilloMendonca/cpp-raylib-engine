@@ -1,13 +1,21 @@
-football: build 
-	g++ -o build/football src/footballGame.cpp -L./dependencies/raylib/src -lraylib -I./dependencies/raylib/src -I./src -I./dependencies
+CC = g++
+CFLAGS = 
 
-physics: build
-	g++ -o build/physics src/game.cpp -L./src/raylib/src -lraylib -I./src/raylib/src -I./src
-
-map: build
-	g++ -o build/mapTest src/mapTest.cpp -L./src/raylib/src -lraylib -I./src/raylib/src -I./src -g
-build: 
-	mkdir build
-	cp src/shader.fs src/map.txt src/map2.txt build/
-clean:
-	rm -rf build
+all: buildDir dynamicLibs staticLibs executables
+buildDir:
+	mkdir -p build
+dynamicLibs: 
+staticLibs: 
+executables: build/football build/physics build/mapTest 
+src/footballGame.cpp.o:
+	g++  -Idependencies/raylib/include -Idependencies/raygui/src -Idependencies/logger -Iinclude/ -c src/footballGame.cpp -o src/footballGame.cpp.o
+src/game.cpp.o:
+	g++  -Idependencies/raylib/include -Idependencies/raygui/src -Idependencies/logger -Iinclude/ -c src/game.cpp -o src/game.cpp.o
+src/mapTest.cpp.o:
+	g++  -Idependencies/raylib/include -Idependencies/raygui/src -Idependencies/logger -Iinclude/ -c src/mapTest.cpp -o src/mapTest.cpp.o
+build/football: src/footballGame.cpp.o
+	g++  -Idependencies/raylib/include -Idependencies/raygui/src -Idependencies/logger src/footballGame.cpp.o -o build/football -Lbuild -lraylib -Wl,-rpath=/home/gengar/codes/cpp-raylib-engine/build
+build/physics: src/game.cpp.o
+	g++  -Idependencies/raylib/include -Idependencies/raygui/src -Idependencies/logger src/game.cpp.o -o build/physics -Lbuild -lraylib -Wl,-rpath=/home/gengar/codes/cpp-raylib-engine/build
+build/mapTest: src/mapTest.cpp.o
+	g++  -Idependencies/raylib/include -Idependencies/raygui/src -Idependencies/logger src/mapTest.cpp.o -o build/mapTest -Lbuild -lraylib -Wl,-rpath=/home/gengar/codes/cpp-raylib-engine/build

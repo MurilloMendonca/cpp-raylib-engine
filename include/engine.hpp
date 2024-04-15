@@ -8,6 +8,7 @@ extern "C" {
 #include <map>
 #include <string>
 #include <vector>
+#include "logger.h"
 
 #include "rlgl.h"
 
@@ -148,13 +149,13 @@ struct Engine {
   void setPreDraw(std::function<void(Map &, float)> func) { preDraw = func; }
   void setPostDraw(std::function<void(Map &, float)> func) { postDraw = func; }
   Engine(Renderer rend, Map m) : renderer(rend), map(m) {}
+
   // Check collision between two rectangles
   // returns 0 if no collision;
   // returns 1 if collision on the right;
   // returns 2 if collision on the left;
   // returns 3 if collision on the top;
   // returns 4 if collision on the bottom;
-  //
   int8_t CheckCollisionDirection(Rectangle rect1, Rectangle rect2) {
     if (rect1.x + rect1.width < rect2.x || rect1.x > rect2.x + rect2.width ||
         rect1.y + rect1.height < rect2.y || rect1.y > rect2.y + rect2.height) {
@@ -378,7 +379,9 @@ struct Engine {
   void setUpdate(std::function<void(Map &, float)> func) { update = func; }
 
   void start(int ObjIdToCenterOn = 0) {
+    LOG_INFO("Initializing engine");
     renderer.init();
+    LOG_INFO("Starting engine");
     while (!renderer.shouldClose()) {
       for (auto const &[key, val] : keybinds) {
         if (IsKeyDown(key)) {
@@ -421,5 +424,7 @@ struct Engine {
 
       renderer.endDrawing();
     }
+    renderer.close();
+    LOG_INFO("Engine closed");
   }
 };

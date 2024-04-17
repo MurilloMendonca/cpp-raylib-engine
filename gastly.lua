@@ -7,16 +7,19 @@ return {
     modules = {
         {
             name = "Copy resources",
+            output = "copyResourcesToBuildDir",
+            preBuildCommands= function() return true end,
             buildCommands = function(runCmd)
-                runCmd("cp resources/* build/")
-            end
+                return runCmd("cp resources/* build/")
+            end,
+            executable = true,
         },
         {
             name = "footbal",
             executable = true,
             libraries = { "raylib" },
-            sources = { "src/footballGame.cpp" },
-            include = { "include/" },
+            sources = { "src/footballGame/" },
+            include = { "include/", "include/footballGame/" },
             output = "build/football"
         },
         {

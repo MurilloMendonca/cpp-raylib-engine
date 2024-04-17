@@ -1,25 +1,16 @@
-#include <condition_variable>
-#include <memory>
-#include <optional>
-#define GLSL_VERSION 330
+#include "common.hpp"
 #include "engine.hpp"
-#include "message.hpp"
+#include "footballGame/network.hpp"
 #include "raylib.h"
 #include "rlgl.h"
-#include <arpa/inet.h>
-#include <queue>
-
-#ifdef __WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <sys/socket.h>
-#include <unistd.h>
-#endif
 #include <thread>
+
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 
+/* ============================
+ * Constants
+ * ============================*/
 const int PLAYER_SIZE = 50;
 const Dimension FIELD_DIMENSION = {600, 800};
 const Dimension WINDOW_DIMENSION = {800, 1000};
@@ -38,14 +29,18 @@ const Rectangle CONNECT_BUTTON_RECT = {200, FIELD_DIMENSION.height + 50.0f, 100,
 const Rectangle START_SERVER_BUTTON_RECT = {400, FIELD_DIMENSION.height + 50.0f,
                                             100, 50};
 const Color FIELD_COLOR = {65, 168, 63, 255};
-int player1Score = 0;
-int player2Score = 0;
-bool editText = false;
-char userText[100] = {0};
 
 enum class Mode { SERVER, CLIENT, STANDALONE };
 enum class Direction { UP, DOWN, LEFT, RIGHT };
 enum class ObjectType { BALL = 0, PLAYER1, PLAYER2, GOAL, CENTER };
+
+/* ============================
+ * Global variables / state
+ * ============================*/
+int player1Score = 0;
+int player2Score = 0;
+bool editText = false;
+char userText[100] = {0};
 
 // ==============================
 // Function declarations
@@ -57,161 +52,18 @@ void setupServerModeKeybinds(Engine &engine);
 void setupClientModeKeybinds(Engine &engine);
 void setupKeybinds(Engine &engine, Mode mode, int sock);
 void resetGame(Map &map);
-std::optional<int> clientStablishConnection(const char *ip);
-std::optional<int> serverStablishConnection();
-void enqueueServerMessage(std::shared_ptr<std::queue<ServerMessage>> messageQueue, ServerMessage message);
-void sendServerMessage(int sock, std::shared_ptr<std::queue<ServerMessage>> messageQueue);
-void receiveServerMessage(int sock, std::shared_ptr<std::queue<ServerMessage>>statusQueue);
-void updateMap(std::shared_ptr<std::queue<ServerMessage>> statusQueue, Map &map);
-void enqueueClientMessage(std::shared_ptr<std::queue<ClientMessage>> messageQueue, ClientMessage message);
-void sendClientMessages(int sock, std::shared_ptr<std::queue<ClientMessage>> messageQueue);
-void sendClientMessage(int sock, ClientMessage message);
-void receiveClientMessage(int sock, std::shared_ptr<std::queue<ClientMessage>> messageQueue);
-void handleClientMessage(std::shared_ptr<std::queue<ClientMessage>>messageQueue, Map &map);
 
 // ==============================
 // Connection related functions
 // ==============================
-std::optional<int> clientStablishConnection(const char *ip) {
-  int sock = 0;
-  struct sockaddr_in serv_addr;
-  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    printf("\n Socket creation error \n");
-    return {};
-  }
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_port = htons(8989);
-  serv_addr.sin_addr.s_addr = inet_addr(ip);
-  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    printf("\nConnection Failed \n");
-    return {};
-  }
-  printf("Connected to server\n");
-  return sock;
-}
 
-std::optional<int> serverStablishConnection() {
-  int server_fd, new_socket;
-  struct sockaddr_in address;
-  int addrlen = sizeof(address);
-  server_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = INADDR_ANY;
-  address.sin_port = htons(8989);
-  int result = bind(server_fd, (struct sockaddr *)&address, sizeof(address));
-  if (result == -1) {
-    printf("Error binding the socket\n");
-    return {};
-  }
-  int list = listen(server_fd, 3);
-  if (list == -1) {
-    printf("Error listening to the socket\n");
-    return {};
-  }
-  printf("Server is listening\n");
-  int socket = accept(server_fd, (struct sockaddr *)&address,
-                      (socklen_t *)&addrlen); // Accept the connection
-  printf("Server accepted the connection\n");
-  return socket;
-}
-
-void enqueueServerMessage(std::shared_ptr<std::queue<ServerMessage>> messageQueue, ServerMessage message) {
-  messageQueue->push(message);
-}
-
-void sendServerMessage(int sock, std::shared_ptr<std::queue<ServerMessage>> messageQueue) {
-  while (true) {
-    if (!messageQueue->empty()) {
-      ServerMessage message = messageQueue->front();
-      messageQueue->pop();
-      std::vector<char> serialized = message.serialize();
-      if (serialized.size() > 0) {
-        int sendServerMessage = send(sock, serialized.data(), serialized.size(), 0);
-        if (sendServerMessage == -1) {
-          printf("Error sending message\n");
-        }
-        if (sendServerMessage == 0) {
-          printf("Client disconnected\n");
-        }
-      }
-    }
-  }
-}
-
-void receiveServerMessage(int sock, std::shared_ptr<std::queue<ServerMessage>>statusQueue) {
-  while (true) {
-    char buffer[2048] = {0};
-    int valread = read(sock, buffer, 2048);
-    if (valread == 0) {
-      printf("Server disconnected\n");
-      return;
-    }
-    if (valread <= -1) {
-      printf("Error reading from server\n");
-      return;
-    }
-    std::vector<char> message(buffer, buffer + valread);
-    ServerMessage status(message);
-    statusQueue->push(status);
-  }
-}
-
-void updateMap(std::shared_ptr<std::queue<ServerMessage>>statusQueue, Map &map) {
+void updateMap(ServerMessageQueuePtr statusQueue, Map &map) {
   if (!statusQueue->empty()) {
     ServerMessage status = statusQueue->front();
     statusQueue->pop();
     status.updateMap(map);
     player1Score = status.player1Score;
     player2Score = status.player2Score;
-  }
-}
-
-void enqueueClientMessage(std::shared_ptr<std::queue<ClientMessage>> messageQueue, ClientMessage message) {
-  messageQueue->push(message);
-}
-
-void sendClientMessages(int sock, std::shared_ptr<std::queue<ClientMessage>> messageQueue) {
-  while (true) {
-    if (!messageQueue->empty()) {
-      ClientMessage message = messageQueue->front();
-      messageQueue->pop();
-      sendClientMessage(sock, message);
-    }
-  }
-}
-
-void sendClientMessage(int sock, ClientMessage message) {
-  std::vector<char> serialized = message.serialize();
-  if (serialized.size() > 0) {
-    int sendServerMessage = send(sock, serialized.data(), serialized.size(), 0);
-    if (sendServerMessage == -1) {
-      printf("Error sending message\n");
-    }
-    if (sendServerMessage == 0) {
-      printf("Client disconnected\n");
-    }
-  }
-}
-
-void receiveClientMessage(int sock, std::shared_ptr<std::queue<ClientMessage>>messageQueue) {
-  while (true) {
-    char buffer[2048] = {0};
-    int valread = read(sock, buffer, 2048);
-    std::vector<char> message(buffer, buffer + valread);
-    ClientMessage messageObj(message);
-    messageQueue->push(messageObj);
-  }
-}
-
-void handleClientMessage(std::shared_ptr<std::queue<ClientMessage>> messageQueue, Map &map) {
-  if (!messageQueue->empty()) {
-    ClientMessage message = messageQueue->front();
-    messageQueue->pop();
-    printf("Received message:\n");
-    message.print();
-    auto &player = map.objects[2];
-    player.acceleration.x = message.acceleration_x;
-    player.acceleration.y = message.acceleration_y;
   }
 }
 
@@ -450,7 +302,8 @@ void enterServerMode(int sock, Engine &engine) {
       player1Score++;
     }
 
-    enqueueServerMessage(statusQueue, ServerMessage(map, player1Score, player2Score));
+    enqueueServerMessage(statusQueue,
+                         ServerMessage(map, player1Score, player2Score));
 
     handleClientMessage(messageQueue, map);
   };
@@ -553,8 +406,10 @@ int main() {
     }
   };
 
+  Renderer renderer(WINDOW_DIMENSION, "Football", 60);
+  Engine engine;
   userText[0] = '\0';
-  auto showScore = [](Map &map, float deltaTime) {
+  auto showScore = [&engine](Map &map, float deltaTime) {
     // Draw the field lines
     // Center line
     DrawLine(0, FIELD_DIMENSION.height / 2.0f, FIELD_DIMENSION.width,
@@ -574,15 +429,21 @@ int main() {
     //  Draw the text box
     GuiTextBox(IP_FIELD_RECT, userText, 100, editText);
     GuiButton(CONNECT_BUTTON_RECT, "connect");
-    GuiButton(START_SERVER_BUTTON_RECT, "start Server");
-
+    int startServerButton = GuiButton(START_SERVER_BUTTON_RECT, "start Server");
+    if (startServerButton == 1) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      auto socket = serverStablishConnection();
+      if (!socket.has_value()) {
+        printf("Error stablishing the connection\n");
+        return;
+      }
+      enterServerMode(socket.value(), engine);
+    }
     // Draw the FPS on the right top corner
     DrawText(std::to_string(GetFPS()).c_str(), WINDOW_DIMENSION.width - 200, 0,
              20, WHITE);
   };
 
-  Renderer renderer(WINDOW_DIMENSION, "Football", 60);
-  Engine engine;
   engine.renderer = renderer;
   engine.map = map;
   setupKeybinds(engine, Mode::STANDALONE);
